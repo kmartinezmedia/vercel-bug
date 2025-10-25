@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { transformCode } from '@/actions/transform-code';
+import ServerComponentTest from './server-component-test';
 
 const initialCss = `
   @import "tailwindcss";
@@ -78,6 +79,8 @@ export default function Home() {
   return (
     <div className="max-w-4xl mx-auto p-6">
       <h1 className="text-2xl font-bold mb-6">Tailwind CSS Transformer</h1>
+
+      <ServerComponentTest />
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
