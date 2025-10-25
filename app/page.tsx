@@ -6,34 +6,34 @@ const initialCss = `
   @custom-variant dark (&:where(.dark, .dark *));
 `;
 
-async function transformCssWithBun(css: string) {
-  try {
-    const result = await $`echo ${css} | tailwindcss -i -`.text();
-    return result;
-  } catch (error) {
-    throw new Error(
-      `Failed to transform CSS: ${error instanceof Error ? error.message : 'Unknown error'}`,
-    );
-  }
+async function transformCss(css: string) {
+  const result = await $`echo ${css} | tailwindcss -i -`.text();
+  return result;
 }
 
 export default async function Home({
   searchParams,
 }: {
-  searchParams: { className?: string; error?: string };
+  searchParams: Promise<{ className?: string; error?: string }>;
 }) {
-  const className = searchParams.className;
-  const error = searchParams.error;
+  const params = await searchParams;
+  const className = params.className;
+  const error = params.error;
 
-  // Transform initial CSS using Bun (runs on server)
-  const initialOutput = await transformCssWithBun(initialCss);
+  // Transform initial CSS (works in both Bun and Node.js)
+  const initialOutput = await transformCss(initialCss);
 
-  // Transform with additional class if provided
+  // Transform with accumulated classes if provided
   let additionalOutput = '';
   if (className) {
     try {
-      const combinedCss = `${initialCss} @source inline("${className}");`;
-      additionalOutput = await transformCssWithBun(combinedCss);
+      // Split classnames and create individual @source inline directives
+      const classNames = className.split(' ').filter(Boolean);
+      const sourceDirectives = classNames
+        .map((cls) => `@source inline("${cls}");`)
+        .join('\n');
+      const combinedCss = `${initialCss}\n${sourceDirectives}`;
+      additionalOutput = await transformCss(combinedCss);
     } catch {
       // Error will be handled by the form action
     }
@@ -48,19 +48,20 @@ export default async function Home({
       <form
         action={async (formData: FormData) => {
           'use server';
-          const className = formData.get('className') as string;
+          const newClassName = formData.get('className') as string;
 
-          if (!className?.trim()) {
+          if (!newClassName?.trim()) {
             redirect('/?error=Please enter a class name');
           }
 
-          try {
-            redirect(`/?className=${encodeURIComponent(className.trim())}`);
-          } catch {
-            redirect(
-              `/?error=${encodeURIComponent('Failed to transform CSS')}`,
-            );
-          }
+          // Accumulate classnames: combine existing with new
+          const existingClassNames = params.className || '';
+          const combinedClassNames = existingClassNames
+            ? `${existingClassNames} ${newClassName.trim()}`
+            : newClassName.trim();
+
+          // Redirect with accumulated classnames
+          redirect(`/?className=${encodeURIComponent(combinedClassNames)}`);
         }}
         className="space-y-4"
       >
@@ -104,8 +105,21 @@ export default async function Home({
       {className && additionalOutput && (
         <div className="mt-8">
           <h2 className="text-lg font-semibold mb-3">
-            CSS Output with "{className}":
+            CSS Output with accumulated classes:
           </h2>
+          <div className="mb-3">
+            <p className="text-sm text-gray-600">
+              <strong>Classes:</strong>{' '}
+              {className.split(' ').map((cls, i) => (
+                <span
+                  key={i}
+                  className="inline-block bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs mr-1"
+                >
+                  {cls}
+                </span>
+              ))}
+            </p>
+          </div>
           <pre className="bg-gray-300 text-gray-900 p-4 rounded-md overflow-x-auto">
             <code className="text-sm">{additionalOutput}</code>
           </pre>
