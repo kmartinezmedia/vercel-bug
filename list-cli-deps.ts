@@ -3,6 +3,8 @@ import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import path, { dirname } from 'node:path';
 
+const packageToGetDepsFor = '@tailwindcss/postcss';
+
 const require_ = createRequire(import.meta.url);
 const toPosix = (p: string) => p.split(path.sep).join('/');
 
@@ -52,7 +54,7 @@ function walk(root: string, seen = new Map<string, any>()) {
   return seen;
 }
 
-const target = process.argv[2] || '@tailwindcss/cli';
+const target = process.argv[2] || packageToGetDepsFor;
 const graph = walk(target)!;
 
 const pwd = process.env.PWD ?? process.cwd();

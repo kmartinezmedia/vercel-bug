@@ -1,33 +1,12 @@
 'use server';
 
-import { spawn } from 'node:child_process';
-import { once } from 'node:events';
-import path from 'node:path';
+import postcss from 'postcss';
 
 export async function transformCode(cssInput: string) {
-  const tailwindCli = path.resolve(
-    process.env.PWD ?? '',
-    './node_modules/.bin/tailwindcss',
-  );
-
-  const tailwind = spawn(tailwindCli, ['-i', '-'], {
-    stdio: ['pipe', 'pipe', 'pipe'],
+  const tailwind = await import('@tailwindcss/postcss');
+  const { css: out } = await postcss([tailwind.default()]).process(cssInput, {
+    from: 'virtual.css',
+    to: undefined,
   });
-
-  let stdout = '';
-  let stderr = '';
-
-  tailwind.stdout.on('data', (d) => {
-    stdout += d;
-  });
-  tailwind.stderr.on('data', (d) => {
-    stderr += d;
-  });
-
-  tailwind.stdin.end(cssInput);
-
-  const [code] = await once(tailwind, 'close');
-
-  if (code === 0) return stdout;
-  throw new Error(`Tailwind CSS exited with code ${code}: ${stderr}`);
+  return out;
 }
