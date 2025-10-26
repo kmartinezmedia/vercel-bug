@@ -1,36 +1,27 @@
 'use server';
 
-import tailwind from '@tailwindcss/postcss';
-import postcss from 'postcss';
-import path from 'node:path';
-import fs from 'node:fs';
-
-function findProjectRoot(start = process.cwd()) {
-  let dir = start;
-  const { root } = path.parse(dir);
-
-  while (true) {
-    // prefer the dir that actually has tailwindcss installed
-    if (fs.existsSync(path.join(dir, 'node_modules', 'tailwindcss')))
-      return dir;
-    // reasonable fallback: first package.json we find
-    if (fs.existsSync(path.join(dir, 'package.json'))) return dir;
-
-    const parent = path.dirname(dir);
-    if (parent === dir || parent === root) break;
-    dir = parent;
-  }
-  return start; // last resort
-}
+import { spawn } from 'node:child_process';
+import { once } from 'node:events';
 
 export async function transformCode(cssInput: string) {
-  const cwd = findProjectRoot();
-
-  const result = await postcss([tailwind({ base: cwd })]).process(cssInput, {
-    // anchor resolution at the *root* that has node_modules
-    from: path.join(cwd, 'virtual.css'),
-    to: undefined,
+  const tailwind = spawn('tailwindcss', ['-i', '-'], {
+    stdio: ['pipe', 'pipe', 'pipe'],
   });
 
-  return result.css;
+  let stdout = '';
+  let stderr = '';
+
+  tailwind.stdout.on('data', (d) => {
+    stdout += d;
+  });
+  tailwind.stderr.on('data', (d) => {
+    stderr += d;
+  });
+
+  tailwind.stdin.end(cssInput);
+
+  const [code] = await once(tailwind, 'close');
+
+  if (code === 0) return stdout;
+  throw new Error(`Tailwind CSS exited with code ${code}: ${stderr}`);
 }
