@@ -1,54 +1,82 @@
 // get-transitive-deps.ts
-import { readFileSync } from 'node:fs';
-import path, { dirname, join } from 'node:path';
-import { createRequire } from 'node:module';
-import { $ } from 'bun';
 import fs from 'node:fs';
+import path, { dirname } from 'node:path';
+import { createRequire } from 'node:module';
 
 const require_ = createRequire(import.meta.url);
+const toPosix = (p: string) => p.split(path.sep).join('/');
 
-function pkgJsonPath(name: string) {
-  return require_.resolve(`${name}/package.json`);
+function safeResolvePackageJson(name: string): string | null {
+  try {
+    return require_.resolve(`${name}/package.json`);
+  } catch {
+    return null; // skip optional / platform-specific deps
+  }
 }
 
 function readDeps(name: string) {
-  const p = pkgJsonPath(name);
-  const json = JSON.parse(readFileSync(p, 'utf8'));
+  const pkgPath = safeResolvePackageJson(name);
+  if (!pkgPath) return null;
+
+  const dir = dirname(pkgPath);
+  const json = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+  const deps = Object.keys(json.dependencies ?? {});
+  const bins: { cmd: string; rel: string }[] = [];
+
+  if (json.bin) {
+    if (typeof json.bin === 'string') {
+      bins.push({ cmd: json.name ?? name, rel: json.bin });
+    } else {
+      for (const [cmd, rel] of Object.entries(json.bin)) {
+        bins.push({ cmd, rel });
+      }
+    }
+  }
+
   return {
-    dir: dirname(p),
     name: json.name ?? name,
     version: json.version ?? '',
-    deps: Object.keys(json.dependencies ?? {}),
+    dir,
+    deps,
+    bins,
   };
 }
 
-function walk(root: string, seen = new Map<string, string>()) {
-  if (seen.has(root)) return;
-  const { name, version, deps } = readDeps(root);
-  seen.set(name, version);
-  for (const d of deps) walk(d, seen);
+function walk(root: string, seen = new Map<string, any>()) {
+  if (seen.has(root)) return seen;
+  const node = readDeps(root);
+  if (!node) return seen;
+  seen.set(node.name, node);
+  for (const dep of node.deps) walk(dep, seen);
   return seen;
 }
 
 const target = process.argv[2] || '@tailwindcss/cli';
-const result = walk(target)!;
+const graph = walk(target)!;
 
-const transitiveDeps = [];
-const pwd = process.env.PWD ?? '';
+const pwd = process.env.PWD ?? process.cwd();
+const includes = new Set<string>();
 
-// Print as NAME@VERSION, sorted
-for (const [name, ver] of [...result.entries()].sort()) {
-  const pathForPackage = path.resolve(pwd, 'node_modules', name);
-  const exists = fs.existsSync(pathForPackage);
+for (const node of [...graph.values()].sort((a, b) =>
+  a.name.localeCompare(b.name),
+)) {
+  if (fs.existsSync(node.dir)) {
+    includes.add(`./${toPosix(path.relative(pwd, node.dir))}/**`);
+  }
 
-  if (exists) {
-    const relativePath = pathForPackage.replace(pwd, '');
-    transitiveDeps.push(`.${relativePath}/**`);
+  for (const { cmd, rel } of node.bins) {
+    const binAbs = path.join(node.dir, rel);
+    if (fs.existsSync(binAbs)) {
+      includes.add(`./${toPosix(path.relative(pwd, binAbs))}`);
+    }
+
+    const shim = path.join(pwd, 'node_modules', '.bin', cmd);
+    if (fs.existsSync(shim)) {
+      includes.add(`./${toPosix(path.relative(pwd, shim))}`);
+    }
   }
 }
 
-console.log(transitiveDeps.join('\n'));
-Bun.write(
-  'tailwind-transitive-deps.json',
-  JSON.stringify(transitiveDeps, null, 2),
-);
+const list = [...includes].sort();
+console.log(list.join('\n'));
+await Bun.write('tailwind-transitive-deps.json', JSON.stringify(list, null, 2));
