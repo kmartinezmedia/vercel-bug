@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { transformCode } from '@/actions/transform-code';
+import { transformCode } from '@/app/actions/transform-code';
 
 const initialCss = `
   @import "tailwindcss";
