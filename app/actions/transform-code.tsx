@@ -2,9 +2,12 @@
 
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
+import path from 'node:path';
 
 export async function transformCode(cssInput: string) {
-  const tailwind = spawn('tailwindcss', ['-i', '-'], {
+  const tailwindCli = path.resolve('./node_modules/.bin/tailwindcss');
+
+  const tailwind = spawn(tailwindCli, ['-i', '-'], {
     stdio: ['pipe', 'pipe', 'pipe'],
   });
 
