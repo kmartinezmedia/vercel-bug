@@ -1,7 +1,7 @@
 // get-transitive-deps.ts
 import fs from 'node:fs';
-import path, { dirname } from 'node:path';
 import { createRequire } from 'node:module';
+import path, { dirname } from 'node:path';
 
 const require_ = createRequire(import.meta.url);
 const toPosix = (p: string) => p.split(path.sep).join('/');
@@ -27,7 +27,7 @@ function readDeps(name: string) {
     if (typeof json.bin === 'string') {
       bins.push({ cmd: json.name ?? name, rel: json.bin });
     } else {
-      for (const [cmd, rel] of Object.entries(json.bin)) {
+      for (const [cmd, rel] of Object.entries(json.bin) as [string, string][]) {
         bins.push({ cmd, rel });
       }
     }
@@ -42,6 +42,7 @@ function readDeps(name: string) {
   };
 }
 
+// biome-ignore lint/suspicious/noExplicitAny: this is fine
 function walk(root: string, seen = new Map<string, any>()) {
   if (seen.has(root)) return seen;
   const node = readDeps(root);
