@@ -4,7 +4,7 @@ import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 
 export async function transformCode(cssInput: string) {
-  const tailwind = spawn('bunx', ['tailwindcss', '-i', '-'], {
+  const tailwind = spawn('npx', ['tailwindcss', '-i', '-'], {
     stdio: ['pipe', 'pipe', 'pipe'],
   });
 
