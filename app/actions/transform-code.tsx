@@ -5,7 +5,10 @@ import { once } from 'node:events';
 import path from 'node:path';
 
 export async function transformCode(cssInput: string) {
-  const tailwindCli = path.resolve('./node_modules/.bin/tailwindcss');
+  const tailwindCli = path.resolve(
+    process.env.PWD ?? '',
+    './node_modules/.bin/tailwindcss',
+  );
 
   const tailwind = spawn(tailwindCli, ['-i', '-'], {
     stdio: ['pipe', 'pipe', 'pipe'],
