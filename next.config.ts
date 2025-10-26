@@ -8,6 +8,7 @@ const nextConfig: NextConfig = {
       './node_modules/.bin/tailwindcss',
       './node_modules/@tailwindcss/**',
       './node_modules/mri/**',
+      './node_modules/@parcel/watcher/**',
     ],
   },
 };
